@@ -1,8 +1,11 @@
 const express = require('express')
 const app = express()
 const morgan = require('morgan')
+const cors = require('cors')
+
+app.use(cors())
 app.use(express.json())
-app.uset(morgan('tiny',
+app.use(morgan('tiny',
     {
     skip: function (req, res) { return req.method != "POST" }
   }))
@@ -70,23 +73,42 @@ app.get('/api/persons', (request, response) => {
 
 app.post('/api/persons', (request, response) => {
     let newPerson = request.body
-    let error = null
-    if (!newPerson.name || !newPerson.number) {
+    let fail = null
+    if (!newPerson.name || !newPerson.number) {
         fail = "Name or number is missing"
     } else if (persons.findIndex(p => p.name === newPerson.name) >= 0) {
         fail = "Name already exists"
     }
     if (fail) {
-        response.body = { error }
+        response.body = { fail }
         response.status(400).end()
     } else {
-        newPerson.id = Math.random()*10000
+        newPerson.id = Math.round(Math.random()*10000)
         persons.push(newPerson)
-        response.send('')
+        response.json(newPerson)
     }
 })
 
-const PORT = 3001
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
+app.put('/api/persons/:id', (request, response) => {
+  let newPerson = request.body
+  let fail = null
+  if (!newPerson.name || !newPerson.number) {
+      fail = "Name or number is missing"
+  } 
+  if (persons.findIndex(p => p.id === newPerson.id) == -1) {
+    fail = "Invalid ID"
+  }
+  if (fail) {
+      response.body = { fail }
+      response.status(400).end()
+  } else {
+      persons = persons.filter(p => p.id === newPerson.id)
+      persons.push(newPerson)
+      response.json(newPerson)
+  }
 })
+
+const PORT = process.env.PORT || 3001
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`)
+  })
