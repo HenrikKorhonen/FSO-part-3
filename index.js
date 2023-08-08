@@ -5,7 +5,7 @@ app.use(express.json())
 app.uset(morgan('tiny',
     {
     skip: function (req, res) { return req.method != "POST" }
-  })
+  }))
 
 let persons = [
     { 
