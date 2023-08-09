@@ -4,7 +4,7 @@ const morgan = require('morgan')
 const cors = require('cors')
 const mongoose = require('mongoose')
 
-const password = 'rKP5kyOE54cQFzQr'
+const password = process.env.PASSWORD
 
 const url =
   `mongodb+srv://hevemiko:${password}@cluster0.quqg3jx.mongodb.net/?retryWrites=true&w=majority`
