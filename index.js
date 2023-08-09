@@ -10,7 +10,7 @@ const url =
   `mongodb+srv://hevemiko:${password}@cluster0.quqg3jx.mongodb.net/?retryWrites=true&w=majority`
 
 mongoose.set('strictQuery',false)
-mongoose.connect(url)
+//mongoose.connect(url)
 
 app.use(cors())
 app.use(express.static('build'))
@@ -31,29 +31,29 @@ const personSchema = new mongoose.Schema({
 const Person = mongoose.model('Person', personSchema)
 
 const loadAll = () => {
-  mongoose.connect(url)
-  Person.find({}).then(result => {
-    persons = []
-    result.forEach(p => {
-      //console.log(note)
-      persons.push(p)
+  console.log("loadAll()")
+  mongoose.connect(url).then(() => {
+    console.log("after connect")
+    Person.find({}).then(result => {
+      result.forEach(p => {
+        console.log(p)
+        persons.push(p)
+      })
+      mongoose.connection.close()
     })
-    mongoose.connection.close()
   })
 }
 
-loadAll()
 
 const createPerson = newPerson => {
-  mongoose.connect(url)
-  const person = new Person(newPerson)
-  person.save().then(result => {
-  console.log('person saved!')
-  mongoose.connection.close()
-  //return result
-})
-
-} 
+  mongoose.connect(url).then(()=> {
+    const person = new Person(newPerson)
+    person.save().then(result => {
+      console.log('person saved!')
+      mongoose.connection.close()
+    })
+  })
+}
 
 app.get('/', (request, response) => {
   response.send('<h1>Hello World!</h1>')
