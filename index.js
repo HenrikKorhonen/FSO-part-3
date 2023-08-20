@@ -1,140 +1,120 @@
-const express = require('express')
+const express = require("express")
 const app = express()
-const morgan = require('morgan')
-const cors = require('cors')
-const mongoose = require('mongoose')
+const morgan = require("morgan")
+const cors = require("cors")
 
-const password = process.env.PASSWORD
-
-const url =
-  `mongodb+srv://hevemiko:${password}@cluster0.quqg3jx.mongodb.net/?retryWrites=true&w=majority`
-
-mongoose.set('strictQuery',false)
-//mongoose.connect(url)
+const Person = require("./models/person")
 
 app.use(cors())
-app.use(express.static('build'))
+app.use(express.static("build"))
 app.use(express.json())
-app.use(morgan('tiny',
-    {
-    skip: function (req, res) { return req.method != "POST" }
-  }))
+app.use(morgan(function (tokens, req, res) {
+  const body = (req.method === "POST" || req.method === "PUT") ? req.body : "-"
+  return [
+    tokens.method(req, res),
+    tokens.url(req, res),
+    tokens.status(req, res),
+    JSON.stringify(body),
+    tokens.res(req, res, "content-length"), "-",
+    tokens["response-time"](req, res), "ms"
+  ].join(" ")
+}))
 
-let persons = []
-
-const personSchema = new mongoose.Schema({
-  name: String,
-  number: String,
-  id: Number
+app.get("/", (request, response) => {
+  response.send("<h1>Hello World!</h1>")
 })
 
-const Person = mongoose.model('Person', personSchema)
-
-const loadAll = () => {
-  console.log("loadAll()")
-  mongoose.connect(url).then(() => {
-    console.log("after connect")
-    Person.find({}).then(result => {
-      result.forEach(p => {
-        console.log(p)
-        persons.push(p)
-      })
-      mongoose.connection.close()
-    })
-  })
-}
-
-
-const createPerson = newPerson => {
-  mongoose.connect(url).then(()=> {
-    const person = new Person(newPerson)
-    person.save().then(result => {
-      console.log('person saved!')
-      mongoose.connection.close()
-    })
-  })
-}
-
-app.get('/', (request, response) => {
-  response.send('<h1>Hello World!</h1>')
-})
-
-app.get('/info', (request, response) => {
-    let elements = []
-    let n = persons.length
-    elements.push(`<p>Phonebook has info for ${n} people</p>`)
+app.get("/info", (request, response) => {
+  const elements = []
+  Person.Person.countDocuments().then((res) => {
+    elements.push(`<p>Phonebook has info for ${res} people</p>`)
     elements.push(`<p>${Date()}</p>`)
     response.send(elements.join(""))
+  }
+  )
+})
+
+app.get("/api/persons/:id", async (request, response, next) => {
+  Person.getPerson(request.params.id).then(result => {
+    return response.json(result)
+  }
+  ).catch(error => next(error))
+})
+
+
+app.delete("/api/persons/:id", async (request, response) => {
+  response.json(await Person.deletePerson(request.params.id))
+})
+
+
+app.get("/api/persons", (request, response) => {
+  Person.loadAll().then(result => {
+    response.json(result)
   })
-
-app.get('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const person = persons.find(note => note.id === id)
-    if (!person) {
-        response.status(404).end()
-    } else {
-        response.json(person)
-    }
 })
 
-app.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const person = persons.find(note => note.id === id)
-    if (!person) {
-        response.status(404).end()
-    } else {
-        persons = persons.filter(p => p.id === id)
-        response.json(person)
-    }
-})
-
-
-app.get('/api/persons', (request, response) => {
-  loadAll()
-  response.json(persons)
-})
-
-app.post('/api/persons', (request, response) => {
-    let newPerson = request.body
-    let fail = null
-    if (!newPerson.name || !newPerson.number) {
-        fail = "Name or number is missing"
-    } else if (persons.findIndex(p => p.name === newPerson.name) >= 0) {
-        fail = "Name already exists"
-    }
-    if (fail) {
-        response.body = { fail }
-        response.status(400).end()
-    } else {
-        newPerson.id = Math.round(Math.random()*10000)
-        createPerson(newPerson)
-        response.json(newPerson)
-    }
-})
-
-app.put('/api/persons/:id', (request, response) => {
+app.post("/api/persons", async (request, response, next) => {
   let newPerson = request.body
   let fail = null
   if (!newPerson.name || !newPerson.number) {
-      fail = "Name or number is missing"
-  } 
-  if (persons.findIndex(p => p.id === newPerson.id) == -1) {
-    fail = "Invalid ID"
-  }
-  if (fail) {
-      response.body = { fail }
-      response.status(400).end()
+    fail = "Name or number is missing"
+    response.body = JSON.json({ fail })
+    response.status(400).end()
   } else {
-    Person.find({ id: newPerson.id }).then(result => {
-      result.name = newPerson.name
-      result.number = newPerson.number
-    })
-      loadAll()
-      response.json(newPerson)
+    //newPerson.id = Math.round(Math.random()*10000)
+    try {
+      response.json(await Person.createPerson(newPerson))
+    } catch (error) {
+      next(error)
+    }
   }
 })
 
+app.put("/api/persons/:id", async (request, response, next) => {
+  let newPerson = request.body
+  let fail = null
+  if (!newPerson.name || !newPerson.number) {
+    fail = "Name or number is missing"
+    console.log(fail)
+  }
+  if (fail) {
+    response.body = { "message": fail }
+    response.status(400).end()
+  } else {
+    Person.updatePerson(newPerson).then(result =>
+      response.json(result)
+    ).catch(error => next(error))
+  }
+})
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: "unknown endpoint" })
+}
+
+// handler of requests with unknown endpoint
+app.use(unknownEndpoint)
+
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === "CastError") {
+    return response.status(400).send({ error })
+  }
+  if (error.name === "ValidationError") {
+    return response.status(400).send({ error })
+  }
+  else {
+    response.status(500).send({ error })
+  }
+
+  next(error)
+}
+
+// this has to be the last loaded middleware.
+app.use(errorHandler)
+
 const PORT = process.env.PORT || 3000
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`)
-  })  
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`)
+})
